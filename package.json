@@ -46,6 +46,7 @@
         "@typescript-eslint/parser": "^5.59.6",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
+        "dotenv": "^16.0.3",
         "eslint": "^8.41.0",
         "eslint-config-prettier": "^8.8.0",
         "eslint-config-standard": "^17.0.0",
@@ -62,6 +63,8 @@
     },
     "dependencies": {
         "@avanio/logger-like": "^0.1.1",
+        "@aws-sdk/client-s3": "^3.341.0",
+        "@aws-sdk/types": "^3.341.0",
         "aws-sdk": "^2.1386.0",
         "tachyon-drive": "^0.1.4"
     }

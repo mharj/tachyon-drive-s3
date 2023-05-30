@@ -2,10 +2,13 @@
 import 'mocha';
 import * as chai from 'chai';
 import * as chaiAsPromised from 'chai-as-promised';
+import * as dotenv from 'dotenv';
 import * as zod from 'zod';
 import {IPersistSerializer, IStorageDriver, nextSerializer} from 'tachyon-drive';
 import {AwsS3StorageDriver} from '../src/';
 import {strToBufferSerializer} from 'tachyon-drive-node-fs';
+
+dotenv.config();
 
 chai.use(chaiAsPromised);
 
@@ -25,7 +28,9 @@ const jsonSerialization: IPersistSerializer<Data, string> = {
 
 const bufferSerializer: IPersistSerializer<Data, Buffer> = nextSerializer<Data, string, Buffer>(jsonSerialization, strToBufferSerializer);
 
-const driverSet = new Set<IStorageDriver<Data>>([new AwsS3StorageDriver('AwsS3StorageDriver - file: string', 'test', 'test-key', {}, bufferSerializer)]);
+const driverSet = new Set<IStorageDriver<Data>>([
+	new AwsS3StorageDriver('AwsS3StorageDriver - file: string', new URL(`${process.env.S3_URI}`), bufferSerializer),
+]);
 
 const data = dataSchema.parse({test: 'demo'});
 
