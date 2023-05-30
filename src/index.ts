@@ -1,29 +1,39 @@
-import {DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client, S3ClientConfig} from '@aws-sdk/client-s3';
+import {deleteObject, getObject, putObject} from './objectUtils';
 import {IPersistSerializer, IStoreProcessor, StorageDriver} from 'tachyon-drive';
+import {S3Client, S3ClientConfig} from '@aws-sdk/client-s3';
 import {AwsCredentialIdentity} from '@aws-sdk/types';
 import {ILoggerLike} from '@avanio/logger-like';
-import stream = require('stream');
 
-type ClientConfigObject = {client: S3ClientConfig; awsBucket: string; awsKey: string};
+/**
+ * The Tachyon driver configuration object for the AWS S3 storage driver with bucket and key.
+ */
+export type ClientConfigObject = {client: S3ClientConfig; awsBucket: string; awsKey: string};
 
 type ClientConfig = ClientConfigObject | URL;
 
 type ConfigOrAsyncConfig = ClientConfig | Promise<ClientConfig> | (() => ClientConfig | Promise<ClientConfig>);
 
-function urlToConfig(url: URL): ClientConfigObject {
+/**
+ * Utility function to build a ClientConfigObject from a S3ClientConfig, bucket and key.
+ */
+export function buildClientConfig(client: S3ClientConfig, awsBucket: string, awsKey: string): ClientConfigObject {
+	return {client, awsBucket, awsKey};
+}
+
+export function urlToClientConfig(url: URL): ClientConfigObject {
 	const port = url.port ? `:${url.port}` : '';
 	const [awsBucket, awsKey] = url.pathname.slice(1).split('/');
-	return {
-		client: {
+	return buildClientConfig(
+		{
 			credentials: urlToCreedentials(url),
 			endpoint: `${url.protocol}//${url.hostname}${port}`,
 			forcePathStyle: url.searchParams.get('forcePathStyle') === 'true',
-			region: url.searchParams.get('region') || '',
+			region: url.searchParams.get('region') || undefined,
 			tls: url.protocol === 'https:',
 		},
 		awsBucket,
 		awsKey,
-	};
+	);
 }
 
 export function urlToCreedentials(url: URL): AwsCredentialIdentity {
@@ -33,39 +43,12 @@ export function urlToCreedentials(url: URL): AwsCredentialIdentity {
 	};
 }
 
-function getObject(client: S3Client, Bucket: string, Key: string): Promise<Buffer> {
-	// eslint-disable-next-line no-async-promise-executor
-	return new Promise(async (resolve, reject) => {
-		const getObjectCommand = new GetObjectCommand({Bucket, Key});
-
-		try {
-			const response = await client.send(getObjectCommand);
-			if (!response.Body) {
-				throw new Error('No body');
-			}
-			if (!(response.Body instanceof stream.Readable)) {
-				throw new Error('Unknown body type');
-			}
-			// Store all of data chunks returned from the response data stream
-			// into an array then use Array#join() to use the returned contents as a String
-			const responseDataChunks: string[] = [];
-
-			// Handle an error while streaming the response body
-			response.Body.once('error', (err) => reject(err));
-
-			// Attach a 'data' listener to add the chunks of data to our array
-			// Each chunk is a Buffer instance
-			response.Body.on('data', (chunk) => responseDataChunks.push(chunk));
-
-			// Once the stream has no more data, join the chunks into a string and return the string
-			response.Body.once('end', () => resolve(Buffer.from(responseDataChunks.join(''))));
-		} catch (err) {
-			// Handle the error or throw
-			return reject(err);
-		}
-	});
-}
-
+/**
+ * A storage driver that uses AWS S3 as a backend.
+ *
+ * @example
+ * const driver = new AwsS3StorageDriver('AwsS3StorageDriver', new URL(`http://accessKeyId:secretAccessKey@localhost:9000/bucket/key?forcePathStyle=true&region=us-east-1`), bufferSerializer);
+ */
 export class AwsS3StorageDriver<Input> extends StorageDriver<Input, Buffer> {
 	private _config: ConfigOrAsyncConfig;
 	private _awsClient: S3Client | undefined;
@@ -92,13 +75,7 @@ export class AwsS3StorageDriver<Input> extends StorageDriver<Input, Buffer> {
 
 	protected async handleStore(buffer: Buffer): Promise<void> {
 		const config = await this.getAwsClient();
-		await config.client.send(
-			new PutObjectCommand({
-				Bucket: config.awsBucket,
-				Key: config.awsKey,
-				Body: buffer,
-			}),
-		);
+		await putObject(config.client, config.awsBucket, config.awsKey, buffer);
 	}
 
 	protected async handleHydrate(): Promise<Buffer | undefined> {
@@ -109,14 +86,14 @@ export class AwsS3StorageDriver<Input> extends StorageDriver<Input, Buffer> {
 			if (e instanceof Error && e.name === 'NoSuchKey') {
 				return undefined;
 			}
+			// istanbul ignore next
 			throw e;
 		}
-		throw new Error('Unknown body type');
 	}
 
 	protected async handleClear(): Promise<void> {
 		const {client, awsBucket, awsKey} = await this.getAwsClient();
-		await client.send(new DeleteObjectCommand({Bucket: awsBucket, Key: awsKey}));
+		await deleteObject(client, awsBucket, awsKey);
 	}
 
 	private async getAwsClient(): Promise<{client: S3Client; awsBucket: string; awsKey: string}> {
@@ -130,7 +107,7 @@ export class AwsS3StorageDriver<Input> extends StorageDriver<Input, Buffer> {
 	private async getAwsConfig(): Promise<ClientConfigObject> {
 		const value = await (typeof this._config === 'function' ? await this._config() : this._config);
 		if (value instanceof URL) {
-			return urlToConfig(value);
+			return urlToClientConfig(value);
 		}
 		return value;
 	}
