@@ -1,5 +1,5 @@
 import {deleteObject, getObject, putObject} from './objectUtils';
-import {IPersistSerializer, IStoreProcessor, StorageDriver} from 'tachyon-drive';
+import {IExternalNotify, IPersistSerializer, IStoreProcessor, StorageDriver} from 'tachyon-drive';
 import {S3Client, S3ClientConfig} from '@aws-sdk/client-s3';
 import {AwsCredentialIdentity} from '@aws-sdk/types';
 import {ILoggerLike} from '@avanio/logger-like';
@@ -56,10 +56,11 @@ export class AwsS3StorageDriver<Input> extends StorageDriver<Input, Buffer> {
 		name: string,
 		config: ConfigOrAsyncConfig,
 		serializer: IPersistSerializer<Input, Buffer>,
+		extNotify?: IExternalNotify,
 		processor?: IStoreProcessor<Buffer>,
 		logger?: ILoggerLike | Console,
 	) {
-		super(name, serializer, processor, logger);
+		super(name, serializer, extNotify || null, processor, logger);
 		this._config = config;
 	}
 
