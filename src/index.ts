@@ -2,7 +2,7 @@ import {deleteObject, getObject, putObject} from './objectUtils';
 import {IExternalNotify, IPersistSerializer, IStoreProcessor, StorageDriver} from 'tachyon-drive';
 import {S3Client, S3ClientConfig} from '@aws-sdk/client-s3';
 import {AwsCredentialIdentity} from '@aws-sdk/types';
-import {ILoggerLike} from '@avanio/logger-like';
+import type {ILoggerLike} from '@avanio/logger-like';
 
 /**
  * The Tachyon driver configuration object for the AWS S3 storage driver with bucket and key.
